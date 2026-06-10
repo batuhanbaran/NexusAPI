@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kayıt Ol - NexusAPI</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Kayıt Ol</h1>
+      <p class="subtitle">Yeni hesap oluşturun</p>
+
+      <form id="registerForm">
+        <div class="field-row">
+          <div class="field">
+            <label for="isim">İsim</label>
+            <input type="text" id="isim" name="isim" required placeholder="Adınız">
+          </div>
+          <div class="field">
+            <label for="soyisim">Soyisim</label>
+            <input type="text" id="soyisim" name="soyisim" required placeholder="Soyadınız">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="mail">E-posta</label>
+          <input type="email" id="mail" name="mail" required placeholder="ornek@mail.com">
+        </div>
+
+        <div class="field">
+          <label for="cinsiyet">Cinsiyet</label>
+          <select id="cinsiyet" name="cinsiyet" required>
+            <option value="">Seçiniz</option>
+            <option value="erkek">Erkek</option>
+            <option value="kadin">Kadın</option>
+            <option value="diger">Diğer</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="sifre">Şifre</label>
+          <input type="password" id="sifre" name="sifre" required placeholder="En az 6 karakter" minlength="6">
+        </div>
+
+        <button type="submit" class="btn-primary">Kayıt Ol</button>
+      </form>
+
+      <p id="message" class="message hidden"></p>
+
+      <p class="footer-link">
+        Zaten hesabınız var mı? <a href="/">Giriş yapın</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('registerForm');
+    const message = document.getElementById('message');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      message.classList.add('hidden');
+
+      const payload = {
+        isim: document.getElementById('isim').value,
+        soyisim: document.getElementById('soyisim').value,
+        mail: document.getElementById('mail').value,
+        cinsiyet: document.getElementById('cinsiyet').value,
+        sifre: document.getElementById('sifre').value,
+      };
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'Kayıt başarısız');
+        }
+
+        message.textContent = 'Kayıt başarılı! Giriş sayfasına yönlendiriliyorsunuz...';
+        message.className = 'message success';
+        setTimeout(() => window.location.href = '/', 1500);
+      } catch (err) {
+        message.textContent = err.message;
+        message.className = 'message error';
+      }
+    });
+  </script>
+</body>
+</html>

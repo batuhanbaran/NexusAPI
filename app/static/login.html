@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giriş Yap - NexusAPI</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>NexusAPI</h1>
+      <p class="subtitle">E-posta ve şifrenizle giriş yapın</p>
+
+      <form id="loginForm">
+        <div class="field">
+          <label for="mail">E-posta</label>
+          <input type="email" id="mail" name="mail" required placeholder="ornek@mail.com">
+        </div>
+
+        <div class="field">
+          <label for="sifre">Şifre</label>
+          <input type="password" id="sifre" name="sifre" required placeholder="••••••••" minlength="6">
+        </div>
+
+        <button type="submit" class="btn-primary">Giriş Yap</button>
+      </form>
+
+      <p id="message" class="message hidden"></p>
+
+      <p class="footer-link">
+        Hesabınız yok mu? <a href="/kayit">Kayıt olun</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const message = document.getElementById('message');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      message.classList.add('hidden');
+
+      const payload = {
+        mail: document.getElementById('mail').value,
+        sifre: document.getElementById('sifre').value,
+      };
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'Giriş başarısız');
+        }
+
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+
+        message.textContent = `Hoş geldiniz, ${data.user.isim} ${data.user.soyisim}!`;
+        message.className = 'message success';
+      } catch (err) {
+        message.textContent = err.message;
+        message.className = 'message error';
+      }
+    });
+  </script>
+</body>
+</html>
