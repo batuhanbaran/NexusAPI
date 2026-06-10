@@ -1,9 +1,3 @@
-databases:
-  - name: nexusapi-db
-    plan: free
-    databaseName: nexusapi
-    user: nexusapi
-
 services:
   - type: web
     name: nexusapi
@@ -12,10 +6,10 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
       - key: DATABASE_URL
-        fromDatabase:
-          name: nexusapi-db
-          property: connectionString
+        value: postgresql://nexusdb_flst_user:jtSySRr9sdfnmfFPx9mBvyGamLDYyrGb@dpg-d8kitbeq1p3s73fl9dr0-a/nexusdb_flst
       - key: SECRET_KEY
         generateValue: true
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
