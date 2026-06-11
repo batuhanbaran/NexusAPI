@@ -6,7 +6,7 @@ import bcrypt
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.config import JWT_ALGORITHM, settings
 from app.models.user import User
 from app.schemas.user import UserCreate
 
@@ -24,13 +24,13 @@ def create_access_token(user_id: int) -> str:
         minutes=settings.access_token_expire_minutes
     )
     payload = {"sub": str(user_id), "exp": expire}
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> int | None:
     try:
         payload = jwt.decode(
-            token, settings.secret_key, algorithms=[settings.algorithm]
+            token, settings.secret_key, algorithms=[JWT_ALGORITHM]
         )
         user_id = payload.get("sub")
         return int(user_id) if user_id else None

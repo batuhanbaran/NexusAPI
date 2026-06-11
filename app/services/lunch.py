@@ -1,7 +1,7 @@
 import json
 import logging
 
-from groq import Groq
+from groq import AsyncGroq
 
 from app.config import settings
 from app.schemas.lunch import Mekan
@@ -29,10 +29,10 @@ Sadece JSON array döndür.
 """
 
 
-def _get_client() -> Groq:
+def _get_client() -> AsyncGroq:
     if not settings.groq_api_key:
         raise ValueError("GROQ_API_KEY ayarlanmamış")
-    return Groq(api_key=settings.groq_api_key)
+    return AsyncGroq(api_key=settings.groq_api_key)
 
 
 def _parse_mekanlar(raw: str) -> list[Mekan]:
@@ -55,7 +55,7 @@ async def mekan_listesi_getir(lat: float, lng: float) -> list[Mekan]:
     prompt = _USER_PROMPT_TEMPLATE.format(lat=lat, lng=lng)
 
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},

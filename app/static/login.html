@@ -3,71 +3,146 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Giriş Yap - NexusAPI</title>
+  <title>NexusAPI</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="container">
     <div class="card">
       <h1>NexusAPI</h1>
-      <p class="subtitle">E-posta ve şifrenizle giriş yapın</p>
 
-      <form id="loginForm">
-        <div class="field">
-          <label for="mail">E-posta</label>
-          <input type="email" id="mail" name="mail" required placeholder="ornek@mail.com">
-        </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Giriş Yap</button>
+        <button class="tab" data-tab="register">Kayıt Ol</button>
+      </div>
 
-        <div class="field">
-          <label for="sifre">Şifre</label>
-          <input type="password" id="sifre" name="sifre" required placeholder="••••••••" minlength="6">
-        </div>
+      <!-- GİRİŞ FORMU -->
+      <div id="panel-login" class="panel">
+        <form id="loginForm">
+          <div class="field">
+            <label for="login-mail">E-posta</label>
+            <input type="email" id="login-mail" required placeholder="ornek@mail.com">
+          </div>
+          <div class="field">
+            <label for="login-sifre">Şifre</label>
+            <input type="password" id="login-sifre" required placeholder="••••••••" minlength="6">
+          </div>
+          <button type="submit" class="btn-primary">Giriş Yap</button>
+        </form>
+        <p id="login-message" class="message hidden"></p>
+      </div>
 
-        <button type="submit" class="btn-primary">Giriş Yap</button>
-      </form>
+      <!-- KAYIT FORMU -->
+      <div id="panel-register" class="panel hidden">
+        <form id="registerForm">
+          <div class="field-row">
+            <div class="field">
+              <label for="reg-isim">İsim</label>
+              <input type="text" id="reg-isim" required placeholder="Adınız">
+            </div>
+            <div class="field">
+              <label for="reg-soyisim">Soyisim</label>
+              <input type="text" id="reg-soyisim" required placeholder="Soyadınız">
+            </div>
+          </div>
+          <div class="field">
+            <label for="reg-mail">E-posta</label>
+            <input type="email" id="reg-mail" required placeholder="ornek@mail.com">
+          </div>
+          <div class="field">
+            <label for="reg-cinsiyet">Cinsiyet</label>
+            <select id="reg-cinsiyet" required>
+              <option value="">Seçiniz</option>
+              <option value="erkek">Erkek</option>
+              <option value="kadin">Kadın</option>
+              <option value="diger">Diğer</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="reg-sifre">Şifre</label>
+            <input type="password" id="reg-sifre" required placeholder="En az 6 karakter" minlength="6">
+          </div>
+          <button type="submit" class="btn-primary">Kayıt Ol</button>
+        </form>
+        <p id="register-message" class="message hidden"></p>
+      </div>
 
-      <p id="message" class="message hidden"></p>
-
-      <p class="footer-link">
-        Hesabınız yok mu? <a href="/kayit">Kayıt olun</a>
-      </p>
     </div>
   </div>
 
   <script>
-    const form = document.getElementById('loginForm');
-    const message = document.getElementById('message');
+    // Tab geçişi
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+        document.getElementById('panel-' + tab.dataset.tab).classList.remove('hidden');
+      });
+    });
 
-    form.addEventListener('submit', async (e) => {
+    // URL hash ile tab aç: /#register
+    if (window.location.hash === '#register') {
+      document.querySelector('[data-tab="register"]').click();
+    }
+
+    // Giriş
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      message.classList.add('hidden');
-
-      const payload = {
-        mail: document.getElementById('mail').value,
-        sifre: document.getElementById('sifre').value,
-      };
+      const msg = document.getElementById('login-message');
+      msg.className = 'message hidden';
 
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            mail: document.getElementById('login-mail').value,
+            sifre: document.getElementById('login-sifre').value,
+          }),
         });
-
         const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.detail || 'Giriş başarısız');
-        }
+        if (!res.ok) throw new Error(data.detail || 'Giriş başarısız');
 
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('user', JSON.stringify(data.user));
 
-        message.textContent = `Hoş geldiniz, ${data.user.isim} ${data.user.soyisim}!`;
-        message.className = 'message success';
+        msg.textContent = `Hoş geldiniz, ${data.user.isim} ${data.user.soyisim}!`;
+        msg.className = 'message success';
       } catch (err) {
-        message.textContent = err.message;
-        message.className = 'message error';
+        msg.textContent = err.message;
+        msg.className = 'message error';
+      }
+    });
+
+    // Kayıt
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('register-message');
+      msg.className = 'message hidden';
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            isim: document.getElementById('reg-isim').value,
+            soyisim: document.getElementById('reg-soyisim').value,
+            mail: document.getElementById('reg-mail').value,
+            cinsiyet: document.getElementById('reg-cinsiyet').value,
+            sifre: document.getElementById('reg-sifre').value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Kayıt başarısız');
+
+        msg.textContent = 'Kayıt başarılı! Giriş sekmesine yönlendiriliyorsunuz…';
+        msg.className = 'message success';
+        setTimeout(() => document.querySelector('[data-tab="login"]').click(), 1500);
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.className = 'message error';
       }
     });
   </script>

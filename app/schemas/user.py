@@ -36,5 +36,4 @@ class Token(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    hata: str
-    kod: int
+    detail: str

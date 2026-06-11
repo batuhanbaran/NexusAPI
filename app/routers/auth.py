@@ -1,48 +1,26 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.user import ErrorResponse, Token, UserCreate, UserLogin, UserResponse
 from app.services.auth import (
     authenticate_user,
     create_access_token,
     create_user,
-    decode_access_token,
     get_user_by_mail,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-security = HTTPBearer()
 
 _401 = {"model": ErrorResponse}
 _500 = {"model": ErrorResponse}
-
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> User:
-    user_id = decode_access_token(credentials.credentials)
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Geçersiz veya süresi dolmuş token",
-        )
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Kullanıcı bulunamadı",
-        )
-    return user
 
 
 @router.post(

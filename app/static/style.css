@@ -36,6 +36,40 @@ h1 {
   margin-bottom: 0.25rem;
 }
 
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid #334155;
+}
+
+.tab {
+  flex: 1;
+  padding: 0.65rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: #e2e8f0;
+}
+
+.tab.active {
+  color: #60a5fa;
+  border-bottom-color: #3b82f6;
+}
+
+.panel.hidden {
+  display: none;
+}
+
 .subtitle {
   text-align: center;
   color: #94a3b8;

@@ -9,3 +9,10 @@ build/
 .pytest_cache/
 .mypy_cache/
 .DS_Store
+
+# SQLite local dev DB
+*.db
+*.sqlite3
+
+# Alembic
+alembic/versions/__pycache__/

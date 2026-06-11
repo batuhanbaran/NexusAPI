@@ -1,16 +1,17 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.cache import mekan_cache
 from app.config import settings
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.mekan_onerisi import MekanOnerisi
 from app.models.oy import Oy
 from app.models.user import User
-from app.routers.auth import get_current_user
 from app.schemas.lunch import (
     MekanListesiResponse,
     MekanOneriCreate,
@@ -38,14 +39,15 @@ _500 = {"model": ErrorResponse}
     response_model=MekanListesiResponse,
     responses={401: _401, 500: _500},
     summary="Yakın çevredeki yemek mekanlarını listele",
-    description=(
-        "Backendde tanımlı GPS koordinatına göre Gemini AI üzerinden "
-        "öğle yemeği için uygun mekan listesini döndürür. Bearer token gereklidir."
-    ),
 )
 async def get_mekanlar(current_user: User = Depends(get_current_user)):
     lat = settings.lunch_latitude
     lng = settings.lunch_longitude
+    cache_key = f"mekanlar:{lat}:{lng}"
+
+    cached = await mekan_cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     try:
         mekanlar = await mekan_listesi_getir(lat, lng)
@@ -62,11 +64,13 @@ async def get_mekanlar(current_user: User = Depends(get_current_user)):
             detail="AI servisine ulaşılamadı, lütfen tekrar deneyin",
         )
 
-    return MekanListesiResponse(
+    result = MekanListesiResponse(
         mekanlar=mekanlar,
         konum={"lat": lat, "lng": lng},
         toplam=len(mekanlar),
     )
+    await mekan_cache.set(cache_key, result)
+    return result
 
 
 @router.post(
@@ -75,7 +79,6 @@ async def get_mekanlar(current_user: User = Depends(get_current_user)):
     status_code=status.HTTP_201_CREATED,
     responses={401: _401, 500: _500},
     summary="Yeni mekan öner",
-    description="Kullanıcı kendi mekan önerisini ekler. Bearer token gereklidir.",
 )
 def mekan_oner(
     oneri: MekanOneriCreate,
@@ -111,42 +114,52 @@ def mekan_oner(
     response_model=MekanOnerileriListesi,
     responses={401: _401},
     summary="Kullanıcı önerilerini listele",
-    description="Tüm kullanıcıların önerdiği mekanları döndürür. Bearer token gereklidir.",
 )
 def get_oneriler(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    kayitlar = db.query(MekanOnerisi).order_by(MekanOnerisi.created_at.desc()).all()
-
-    oy_sayilari = (
-        db.query(Oy.mekan_id, func.count(Oy.id).label("sayi"))
+    # Tek sorguda mekanlar + oy sayıları
+    oy_sayisi_subq = (
+        select(Oy.mekan_id, func.count(Oy.id).label("sayi"))
         .group_by(Oy.mekan_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(
+            MekanOnerisi,
+            func.coalesce(oy_sayisi_subq.c.sayi, 0).label("oy_sayisi"),
+        )
+        .outerjoin(oy_sayisi_subq, MekanOnerisi.id == oy_sayisi_subq.c.mekan_id)
+        .order_by(MekanOnerisi.created_at.desc())
         .all()
     )
-    oy_map = {row.mekan_id: row.sayi for row in oy_sayilari}
 
+    # Kullanıcının oylarını tek sorguda çek
     benim_oylarim = {
-        oy.mekan_id
-        for oy in db.query(Oy).filter(Oy.kullanici_id == current_user.id).all()
+        row.mekan_id
+        for row in db.execute(
+            select(Oy.mekan_id).where(Oy.kullanici_id == current_user.id)
+        ).all()
     }
 
     oneriler = [
         MekanOneriResponse(
-            id=k.id,
-            isim=k.isim,
-            adres=k.adres,
-            mutfak_turu=k.mutfak_turu,
+            id=mekan.id,
+            isim=mekan.isim,
+            adres=mekan.adres,
+            mutfak_turu=mekan.mutfak_turu,
             oneren=OneriKullanici(
-                id=k.kullanici.id,
-                isim=k.kullanici.isim,
-                soyisim=k.kullanici.soyisim,
+                id=mekan.kullanici.id,
+                isim=mekan.kullanici.isim,
+                soyisim=mekan.kullanici.soyisim,
             ),
-            oy_sayisi=oy_map.get(k.id, 0),
-            oy_kullandim=k.id in benim_oylarim,
-            created_at=k.created_at,
+            oy_sayisi=oy_sayisi,
+            oy_kullandim=mekan.id in benim_oylarim,
+            created_at=mekan.created_at,
         )
-        for k in kayitlar
+        for mekan, oy_sayisi in rows
     ]
 
     return MekanOnerileriListesi(oneriler=oneriler, toplam=len(oneriler))
@@ -157,28 +170,25 @@ def get_oneriler(
     response_model=OyResponse,
     responses={401: _401, 404: {"model": ErrorResponse}},
     summary="Mekana oy ver veya geri al",
-    description=(
-        "Kullanıcı bir mekana oy verir. Zaten oy verdiyse oy geri alınır (toggle). "
-        "Bearer token gereklidir."
-    ),
 )
 def oy_ver(
     mekan_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    mekan = db.query(MekanOnerisi).filter(MekanOnerisi.id == mekan_id).first()
+    mekan = db.get(MekanOnerisi, mekan_id)
     if not mekan:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Mekan bulunamadı",
         )
 
-    mevcut_oy = (
-        db.query(Oy)
-        .filter(Oy.kullanici_id == current_user.id, Oy.mekan_id == mekan_id)
-        .first()
-    )
+    mevcut_oy = db.execute(
+        select(Oy).where(
+            Oy.kullanici_id == current_user.id,
+            Oy.mekan_id == mekan_id,
+        )
+    ).scalar_one_or_none()
 
     if mevcut_oy:
         db.delete(mevcut_oy)
@@ -186,15 +196,16 @@ def oy_ver(
         oy_kullandim = False
     else:
         try:
-            yeni_oy = Oy(kullanici_id=current_user.id, mekan_id=mekan_id)
-            db.add(yeni_oy)
+            db.add(Oy(kullanici_id=current_user.id, mekan_id=mekan_id))
             db.commit()
             oy_kullandim = True
         except IntegrityError:
             db.rollback()
             oy_kullandim = True
 
-    oy_sayisi = db.query(func.count(Oy.id)).filter(Oy.mekan_id == mekan_id).scalar()
+    oy_sayisi = db.scalar(
+        select(func.count(Oy.id)).where(Oy.mekan_id == mekan_id)
+    )
     return OyResponse(mekan_id=mekan_id, oy_sayisi=oy_sayisi, oy_kullandim=oy_kullandim)
 
 
@@ -203,67 +214,81 @@ def oy_ver(
     response_model=SonuclarResponse,
     responses={401: _401},
     summary="Oy sonuçlarını listele",
-    description=(
-        "En çok oylanan mekanları sıralı döndürür. "
-        "Oy kullananlar ve kullanmayanlar listesini içerir. Bearer token gereklidir."
-    ),
 )
 def get_sonuclar(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    mekanlar = db.query(MekanOnerisi).all()
-    tum_kullanicilar = db.query(User).all()
-
-    oy_sayilari = (
-        db.query(Oy.mekan_id, func.count(Oy.id).label("sayi"))
+    # Mekanları oy sayısıyla tek JOIN'de çek
+    oy_sayisi_subq = (
+        select(Oy.mekan_id, func.count(Oy.id).label("sayi"))
         .group_by(Oy.mekan_id)
+        .subquery()
+    )
+
+    mekan_rows = (
+        db.query(
+            MekanOnerisi,
+            func.coalesce(oy_sayisi_subq.c.sayi, 0).label("oy_sayisi"),
+        )
+        .outerjoin(oy_sayisi_subq, MekanOnerisi.id == oy_sayisi_subq.c.mekan_id)
+        .order_by(oy_sayisi_subq.c.sayi.desc().nullslast())
         .all()
     )
-    oy_map = {row.mekan_id: row.sayi for row in oy_sayilari}
 
     benim_oylarim = {
-        oy.mekan_id
-        for oy in db.query(Oy).filter(Oy.kullanici_id == current_user.id).all()
+        row.mekan_id
+        for row in db.execute(
+            select(Oy.mekan_id).where(Oy.kullanici_id == current_user.id)
+        ).all()
     }
-
-    sirali = sorted(mekanlar, key=lambda m: oy_map.get(m.id, 0), reverse=True)
 
     sirali_mekanlar = [
         SonucMekan(
             sira=idx + 1,
-            mekan_id=m.id,
-            isim=m.isim,
-            adres=m.adres,
-            mutfak_turu=m.mutfak_turu,
+            mekan_id=mekan.id,
+            isim=mekan.isim,
+            adres=mekan.adres,
+            mutfak_turu=mekan.mutfak_turu,
             oneren=OneriKullanici(
-                id=m.kullanici.id,
-                isim=m.kullanici.isim,
-                soyisim=m.kullanici.soyisim,
+                id=mekan.kullanici.id,
+                isim=mekan.kullanici.isim,
+                soyisim=mekan.kullanici.soyisim,
             ),
-            oy_sayisi=oy_map.get(m.id, 0),
-            oy_kullandim=m.id in benim_oylarim,
+            oy_sayisi=oy_sayisi,
+            oy_kullandim=mekan.id in benim_oylarim,
         )
-        for idx, m in enumerate(sirali)
+        for idx, (mekan, oy_sayisi) in enumerate(mekan_rows)
     ]
 
-    oy_kullanan_ids = {oy.kullanici_id for oy in db.query(Oy).all()}
+    # Oy kullananlar: her kullanıcının en son oyunu tek sorguda çek
+    # distinct on kullanici_id, en erken oy zamanını al
+    oy_kullananlar_rows = db.execute(
+        select(Oy.kullanici_id, func.min(Oy.created_at).label("oy_zamani"))
+        .group_by(Oy.kullanici_id)
+    ).all()
+
+    oy_kullanan_ids = {row.kullanici_id for row in oy_kullananlar_rows}
+    oy_zamani_map = {row.kullanici_id: row.oy_zamani for row in oy_kullananlar_rows}
+
+    # Oy kullanan kullanıcı detayları
+    oy_kullanan_users = (
+        db.execute(select(User).where(User.id.in_(oy_kullanan_ids))).scalars().all()
+        if oy_kullanan_ids
+        else []
+    )
 
     oy_kullananlar = [
         OyKullananKullanici(
-            id=oy.kullanici.id,
-            isim=oy.kullanici.isim,
-            soyisim=oy.kullanici.soyisim,
-            oy_zamani=oy.created_at,
+            id=u.id,
+            isim=u.isim,
+            soyisim=u.soyisim,
+            oy_zamani=oy_zamani_map[u.id],
         )
-        for oy in (
-            db.query(Oy)
-            .distinct(Oy.kullanici_id)
-            .order_by(Oy.kullanici_id, Oy.created_at.desc())
-            .all()
-        )
+        for u in oy_kullanan_users
     ]
 
+    tum_kullanicilar = db.execute(select(User)).scalars().all()
     oy_kullanmayanlar = [
         OneriKullanici(id=u.id, isim=u.isim, soyisim=u.soyisim)
         for u in tum_kullanicilar
