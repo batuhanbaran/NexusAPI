@@ -51,12 +51,14 @@ def start_scheduler() -> None:
         CronTrigger(hour=9, minute=0, timezone=_TZ),
         id="session_baslat",
         replace_existing=True,
+        misfire_grace_time=None,
     )
     scheduler.add_job(
         _job_session_kapat,
         CronTrigger(hour=12, minute=0, timezone=_TZ),
         id="session_kapat",
         replace_existing=True,
+        misfire_grace_time=None,
     )
     scheduler.start()
     logger.info("Scheduler başlatıldı — session 09:00 açılır, 12:00 kapanır (TR saati)")
