@@ -7,7 +7,7 @@ from app.config import settings
 from app.database import Base
 
 # tüm modeller import edilmeli ki autogenerate görebilsin
-from app.models import mekan_onerisi, oy, user  # noqa: F401
+from app.models import lunch_session, mekan_onerisi, oy, user  # noqa: F401
 
 config = context.config
 

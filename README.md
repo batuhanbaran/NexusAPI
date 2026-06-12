@@ -8,6 +8,7 @@ GibMobil Hackathon projesi için geliştirilmiş FastAPI tabanlı backend. JWT k
 - **FastAPI** — web framework
 - **SQLAlchemy 2.0** — ORM
 - **Alembic** — veritabanı migration
+- **APScheduler** — otomatik session zamanlayıcısı
 - **PostgreSQL** (prod) / **SQLite** (local)
 - **bcrypt** — şifre hashleme
 - **python-jose** — JWT token
@@ -64,8 +65,10 @@ app/
 ├── database.py       # SQLAlchemy engine & session
 ├── dependencies.py   # Ortak FastAPI dependency'ler (get_current_user)
 ├── cache.py          # In-memory TTL cache
+├── scheduler.py      # APScheduler — session açma/kapama job'ları
 ├── models/
 │   ├── user.py           # Kullanıcı modeli
+│   ├── lunch_session.py  # Günlük oturum modeli
 │   ├── mekan_onerisi.py  # Mekan önerisi modeli
 │   └── oy.py             # Oy modeli (unique: kullanıcı + mekan)
 ├── routers/
@@ -76,7 +79,8 @@ app/
 │   └── lunch.py      # LunchSwipe Pydantic şemaları
 ├── services/
 │   ├── auth.py       # JWT, bcrypt yardımcıları
-│   └── lunch.py      # Groq AI entegrasyonu (AsyncGroq)
+│   ├── lunch.py      # Groq AI entegrasyonu (AsyncGroq)
+│   └── session.py    # Session açma/kapama/kazanan logic
 └── static/           # Login/register HTML sayfaları
 alembic/              # Veritabanı migration dosyaları
 ```
@@ -117,13 +121,16 @@ Yanıt: `access_token` + kullanıcı bilgisi
 
 Tüm endpointler `Authorization: Bearer <token>` gerektirir.
 
+> **Session Sistemi:** Her gün **09:00'da** yeni bir oturum otomatik açılır, **12:00'da** kapanır (Türkiye saati).
+> Session dışında öneri ve oy kabul edilmez.
+
 | Method | Endpoint | Açıklama |
 |--------|----------|----------|
 | `GET` | `/api/lunch/mekanlar` | Groq AI ile konum bazlı mekan listesi (5 dk cache) |
-| `POST` | `/api/lunch/oner` | Kullanıcı mekan önerisi ekle |
-| `GET` | `/api/lunch/oneriler` | Kullanıcı önerilerini oy bilgisiyle listele |
+| `POST` | `/api/lunch/oner` | Bugünkü session'a mekan öner |
+| `GET` | `/api/lunch/oneriler` | Bugünkü önerileri oy bilgisiyle listele |
 | `POST` | `/api/lunch/oy/{mekan_id}` | Mekana oy ver / geri al (toggle) |
-| `GET` | `/api/lunch/sonuclar` | Leaderboard + oy kullananlar / kullanmayanlar |
+| `GET` | `/api/lunch/sonuclar` | Bugünkü leaderboard + oy kullananlar / kullanmayanlar |
 
 #### AI Mekan Listesi — `GET /api/lunch/mekanlar`
 

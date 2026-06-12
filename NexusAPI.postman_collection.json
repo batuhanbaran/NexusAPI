@@ -1,0 +1,175 @@
+{
+  "info": {
+    "name": "NexusAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Kayıt Ol",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isim\": \"Test\",\n  \"soyisim\": \"Kullanici\",\n  \"mail\": \"test@nexus.com\",\n  \"cinsiyet\": \"erkek\",\n  \"sifre\": \"Test123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Giriş Yap",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.access_token) {",
+                  "  pm.collectionVariables.set('token', data.access_token);",
+                  "  console.log('Token kaydedildi.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mail\": \"test@nexus.com\",\n  \"sifre\": \"Test123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Kullanıcı Bilgisi (me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/auth/me", "host": ["{{base_url}}"], "path": ["api", "auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lunch",
+      "item": [
+        {
+          "name": "AI Mekan Listesi",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/lunch/mekanlar", "host": ["{{base_url}}"], "path": ["api", "lunch", "mekanlar"] }
+          }
+        },
+        {
+          "name": "Mekan Öner",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/api/lunch/oner", "host": ["{{base_url}}"], "path": ["api", "lunch", "oner"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isim\": \"Hacı Arif Bey\",\n  \"adres\": \"Kızılay, Ankara\",\n  \"mutfak_turu\": \"Türk\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Önerileri Listele",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/lunch/oneriler", "host": ["{{base_url}}"], "path": ["api", "lunch", "oneriler"] }
+          }
+        },
+        {
+          "name": "Oy Ver / Geri Al",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/lunch/oy/1", "host": ["{{base_url}}"], "path": ["api", "lunch", "oy", "1"] }
+          }
+        },
+        {
+          "name": "Sonuçlar / Leaderboard",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/lunch/sonuclar", "host": ["{{base_url}}"], "path": ["api", "lunch", "sonuclar"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Hata Senaryoları",
+      "item": [
+        {
+          "name": "Yanlış Şifre (401 beklenir)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mail\": \"test@nexus.com\",\n  \"sifre\": \"yanlis_sifre\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Mükerrer Kayıt (400 beklenir)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isim\": \"Test\",\n  \"soyisim\": \"Kullanici\",\n  \"mail\": \"test@nexus.com\",\n  \"cinsiyet\": \"erkek\",\n  \"sifre\": \"Test123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Token Olmadan İstek (403 beklenir)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lunch/oneriler", "host": ["{{base_url}}"], "path": ["api", "lunch", "oneriler"] }
+          }
+        },
+        {
+          "name": "Olmayan Mekan Oyu (404 beklenir)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/api/lunch/oy/9999", "host": ["{{base_url}}"], "path": ["api", "lunch", "oy", "9999"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+      }
+    }
+  ]
+}

@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import auth, lunch
+from app.scheduler import start_scheduler, stop_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,9 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Migrations are run via: alembic upgrade head
+    start_scheduler()
     yield
+    stop_scheduler()
 
 
 app = FastAPI(title="NexusAPI", version="1.0.0", lifespan=lifespan)

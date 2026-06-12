@@ -10,6 +10,9 @@ class MekanOnerisi(Base):
     __tablename__ = "mekan_onerileri"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("lunch_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     isim: Mapped[str] = mapped_column(String(200), nullable=False)
     adres: Mapped[str] = mapped_column(String(500), nullable=False)
     mutfak_turu: Mapped[str] = mapped_column(String(100), nullable=False)

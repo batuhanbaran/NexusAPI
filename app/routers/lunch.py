@@ -9,6 +9,7 @@ from app.cache import mekan_cache
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.lunch_session import LunchSession, SessionDurum
 from app.models.mekan_onerisi import MekanOnerisi
 from app.models.oy import Oy
 from app.models.user import User
@@ -25,6 +26,7 @@ from app.schemas.lunch import (
 )
 from app.schemas.user import ErrorResponse
 from app.services.lunch import mekan_listesi_getir
+from app.services.session import get_aktif_session
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,17 @@ router = APIRouter(prefix="/api/lunch", tags=["lunch"])
 
 _401 = {"model": ErrorResponse}
 _500 = {"model": ErrorResponse}
+
+
+def _get_aktif_session_or_400(db: Session) -> LunchSession:
+    """Aktif session yoksa 400 fırlatır."""
+    session = get_aktif_session(db)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Aktif oturum yok, öneri kabul edilmiyor",
+        )
+    return session
 
 
 @router.get(
@@ -77,7 +90,7 @@ async def get_mekanlar(current_user: User = Depends(get_current_user)):
     "/oner",
     response_model=MekanOneriResponse,
     status_code=status.HTTP_201_CREATED,
-    responses={401: _401, 500: _500},
+    responses={400: {"model": ErrorResponse}, 401: _401},
     summary="Yeni mekan öner",
 )
 def mekan_oner(
@@ -85,7 +98,10 @@ def mekan_oner(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    aktif_session = _get_aktif_session_or_400(db)
+
     yeni = MekanOnerisi(
+        session_id=aktif_session.id,
         isim=oneri.isim,
         adres=oneri.adres,
         mutfak_turu=oneri.mutfak_turu,
@@ -112,16 +128,18 @@ def mekan_oner(
 @router.get(
     "/oneriler",
     response_model=MekanOnerileriListesi,
-    responses={401: _401},
-    summary="Kullanıcı önerilerini listele",
+    responses={400: {"model": ErrorResponse}, 401: _401},
+    summary="Bugünkü önerileri listele",
 )
 def get_oneriler(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Tek sorguda mekanlar + oy sayıları
+    aktif_session = _get_aktif_session_or_400(db)
+
     oy_sayisi_subq = (
         select(Oy.mekan_id, func.count(Oy.id).label("sayi"))
+        .where(Oy.session_id == aktif_session.id)
         .group_by(Oy.mekan_id)
         .subquery()
     )
@@ -131,16 +149,19 @@ def get_oneriler(
             MekanOnerisi,
             func.coalesce(oy_sayisi_subq.c.sayi, 0).label("oy_sayisi"),
         )
+        .filter(MekanOnerisi.session_id == aktif_session.id)
         .outerjoin(oy_sayisi_subq, MekanOnerisi.id == oy_sayisi_subq.c.mekan_id)
         .order_by(MekanOnerisi.created_at.desc())
         .all()
     )
 
-    # Kullanıcının oylarını tek sorguda çek
     benim_oylarim = {
         row.mekan_id
         for row in db.execute(
-            select(Oy.mekan_id).where(Oy.kullanici_id == current_user.id)
+            select(Oy.mekan_id).where(
+                Oy.kullanici_id == current_user.id,
+                Oy.session_id == aktif_session.id,
+            )
         ).all()
     }
 
@@ -168,7 +189,7 @@ def get_oneriler(
 @router.post(
     "/oy/{mekan_id}",
     response_model=OyResponse,
-    responses={401: _401, 404: {"model": ErrorResponse}},
+    responses={400: {"model": ErrorResponse}, 401: _401, 404: {"model": ErrorResponse}},
     summary="Mekana oy ver veya geri al",
 )
 def oy_ver(
@@ -176,8 +197,15 @@ def oy_ver(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    aktif_session = get_aktif_session(db)
+    if not aktif_session:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Oylama sona erdi",
+        )
+
     mekan = db.get(MekanOnerisi, mekan_id)
-    if not mekan:
+    if not mekan or mekan.session_id != aktif_session.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Mekan bulunamadı",
@@ -187,6 +215,7 @@ def oy_ver(
         select(Oy).where(
             Oy.kullanici_id == current_user.id,
             Oy.mekan_id == mekan_id,
+            Oy.session_id == aktif_session.id,
         )
     ).scalar_one_or_none()
 
@@ -196,7 +225,11 @@ def oy_ver(
         oy_kullandim = False
     else:
         try:
-            db.add(Oy(kullanici_id=current_user.id, mekan_id=mekan_id))
+            db.add(Oy(
+                kullanici_id=current_user.id,
+                mekan_id=mekan_id,
+                session_id=aktif_session.id,
+            ))
             db.commit()
             oy_kullandim = True
         except IntegrityError:
@@ -204,7 +237,10 @@ def oy_ver(
             oy_kullandim = True
 
     oy_sayisi = db.scalar(
-        select(func.count(Oy.id)).where(Oy.mekan_id == mekan_id)
+        select(func.count(Oy.id)).where(
+            Oy.mekan_id == mekan_id,
+            Oy.session_id == aktif_session.id,
+        )
     )
     return OyResponse(mekan_id=mekan_id, oy_sayisi=oy_sayisi, oy_kullandim=oy_kullandim)
 
@@ -212,16 +248,18 @@ def oy_ver(
 @router.get(
     "/sonuclar",
     response_model=SonuclarResponse,
-    responses={401: _401},
-    summary="Oy sonuçlarını listele",
+    responses={400: {"model": ErrorResponse}, 401: _401},
+    summary="Bugünkü oy sonuçlarını listele",
 )
 def get_sonuclar(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Mekanları oy sayısıyla tek JOIN'de çek
+    aktif_session = _get_aktif_session_or_400(db)
+
     oy_sayisi_subq = (
         select(Oy.mekan_id, func.count(Oy.id).label("sayi"))
+        .where(Oy.session_id == aktif_session.id)
         .group_by(Oy.mekan_id)
         .subquery()
     )
@@ -231,6 +269,7 @@ def get_sonuclar(
             MekanOnerisi,
             func.coalesce(oy_sayisi_subq.c.sayi, 0).label("oy_sayisi"),
         )
+        .filter(MekanOnerisi.session_id == aktif_session.id)
         .outerjoin(oy_sayisi_subq, MekanOnerisi.id == oy_sayisi_subq.c.mekan_id)
         .order_by(oy_sayisi_subq.c.sayi.desc().nullslast())
         .all()
@@ -239,7 +278,10 @@ def get_sonuclar(
     benim_oylarim = {
         row.mekan_id
         for row in db.execute(
-            select(Oy.mekan_id).where(Oy.kullanici_id == current_user.id)
+            select(Oy.mekan_id).where(
+                Oy.kullanici_id == current_user.id,
+                Oy.session_id == aktif_session.id,
+            )
         ).all()
     }
 
@@ -261,21 +303,18 @@ def get_sonuclar(
         for idx, (mekan, oy_sayisi) in enumerate(mekan_rows)
     ]
 
-    # Oy kullananlar: her kullanıcının en son oyunu tek sorguda çek
-    # distinct on kullanici_id, en erken oy zamanını al
     oy_kullananlar_rows = db.execute(
         select(Oy.kullanici_id, func.min(Oy.created_at).label("oy_zamani"))
+        .where(Oy.session_id == aktif_session.id)
         .group_by(Oy.kullanici_id)
     ).all()
 
     oy_kullanan_ids = {row.kullanici_id for row in oy_kullananlar_rows}
     oy_zamani_map = {row.kullanici_id: row.oy_zamani for row in oy_kullananlar_rows}
 
-    # Oy kullanan kullanıcı detayları
     oy_kullanan_users = (
         db.execute(select(User).where(User.id.in_(oy_kullanan_ids))).scalars().all()
-        if oy_kullanan_ids
-        else []
+        if oy_kullanan_ids else []
     )
 
     oy_kullananlar = [

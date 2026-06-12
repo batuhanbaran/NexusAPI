@@ -10,6 +10,9 @@ class Oy(Base):
     __tablename__ = "oylar"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("lunch_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     kullanici_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     mekan_id: Mapped[int] = mapped_column(
         ForeignKey("mekan_onerileri.id", ondelete="CASCADE"), nullable=False
