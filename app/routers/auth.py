@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.user import ErrorResponse, Token, UserCreate, UserLogin, UserResponse
+from app.schemas.user import ErrorResponse, Token, UserCreate, UserLogin, UserResponse, UserUpdate
 from app.services.auth import (
     authenticate_user,
     create_access_token,
@@ -79,4 +79,33 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     responses={401: _401},
 )
 def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    responses={401: _401, 500: _500},
+    summary="Profil bilgilerini güncelle",
+)
+def update_me(
+    data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if data.isim is not None:
+        current_user.isim = data.isim
+    if data.soyisim is not None:
+        current_user.soyisim = data.soyisim
+    if data.cinsiyet is not None:
+        current_user.cinsiyet = data.cinsiyet
+    try:
+        db.commit()
+        db.refresh(current_user)
+    except SQLAlchemyError as e:
+        logger.exception("Profil güncellenirken hata: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Sunucu hatası, lütfen tekrar deneyin",
+        )
     return current_user

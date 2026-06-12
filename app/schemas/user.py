@@ -29,6 +29,12 @@ class UserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UserUpdate(BaseModel):
+    isim: str = Field(None, min_length=1, max_length=100)
+    soyisim: str = Field(None, min_length=1, max_length=100)
+    cinsiyet: Cinsiyet = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
