@@ -53,9 +53,11 @@ def _get_aktif_session_or_400(db: Session) -> LunchSession:
     responses={401: _401, 500: _500},
     summary="Yakın çevredeki yemek mekanlarını listele",
 )
-async def get_mekanlar(current_user: User = Depends(get_current_user)):
-    lat = settings.lunch_latitude
-    lng = settings.lunch_longitude
+async def get_mekanlar(
+    lat: float = settings.lunch_latitude,
+    lng: float = settings.lunch_longitude,
+    current_user: User = Depends(get_current_user),
+):
     cache_key = f"mekanlar:{lat}:{lng}"
 
     cached = await mekan_cache.get(cache_key)
