@@ -10,10 +10,13 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.lunch_session import LunchSession, SessionDurum
+from sqlalchemy import desc
 from app.models.mekan_onerisi import MekanOnerisi
 from app.models.oy import Oy
 from app.models.user import User
 from app.schemas.lunch import (
+    GecmisResponse,
+    GecmisSonuc,
     MekanListesiResponse,
     MekanOneriCreate,
     MekanOneriResponse,
@@ -21,6 +24,7 @@ from app.schemas.lunch import (
     OneriKullanici,
     OyKullananKullanici,
     OyResponse,
+    SessionDurumResponse,
     SonucMekan,
     SonuclarResponse,
 )
@@ -101,6 +105,18 @@ def mekan_oner(
     db: Session = Depends(get_db),
 ):
     aktif_session = _get_aktif_session_or_400(db)
+
+    duplicate = db.execute(
+        select(MekanOnerisi).where(
+            MekanOnerisi.session_id == aktif_session.id,
+            func.lower(MekanOnerisi.isim) == oneri.isim.lower().strip(),
+        )
+    ).scalar_one_or_none()
+    if duplicate:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bu mekan bugün zaten önerilmiş",
+        )
 
     yeni = MekanOnerisi(
         session_id=aktif_session.id,
@@ -342,3 +358,88 @@ def get_sonuclar(
         oy_kullanmayanlar=oy_kullanmayanlar,
         toplam_katilimci=len(oy_kullanan_ids),
     )
+
+
+@router.get(
+    "/session/durum",
+    response_model=SessionDurumResponse,
+    responses={401: _401},
+    summary="Bugünkü session durumunu getir",
+)
+def get_session_durum(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    session = get_aktif_session(db)
+    if session:
+        return SessionDurumResponse(
+            aktif=True,
+            tarih=session.tarih,
+            durum=session.durum.value,
+            mesaj="Oturum açık, öneri ve oy verebilirsiniz",
+        )
+
+    from datetime import date
+    bugun = db.execute(
+        select(LunchSession).where(LunchSession.tarih == date.today())
+    ).scalar_one_or_none()
+
+    if bugun:
+        return SessionDurumResponse(
+            aktif=False,
+            tarih=bugun.tarih,
+            durum=bugun.durum.value,
+            mesaj="Bugünkü oturum kapandı, sonuçları görebilirsiniz",
+        )
+
+    return SessionDurumResponse(
+        aktif=False,
+        tarih=None,
+        durum=None,
+        mesaj="Bugün henüz oturum açılmadı, saat 09:00'da başlayacak",
+    )
+
+
+@router.get(
+    "/gecmis",
+    response_model=GecmisResponse,
+    responses={401: _401},
+    summary="Geçmiş session sonuçlarını listele",
+)
+def get_gecmis(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    sessions = db.execute(
+        select(LunchSession)
+        .where(LunchSession.durum == SessionDurum.kapandi)
+        .order_by(desc(LunchSession.tarih))
+        .limit(30)
+    ).scalars().all()
+
+    gecmis = []
+    for s in sessions:
+        toplam_oneri = db.scalar(
+            select(func.count(MekanOnerisi.id)).where(MekanOnerisi.session_id == s.id)
+        )
+        toplam_oy = db.scalar(
+            select(func.count(Oy.id)).where(Oy.session_id == s.id)
+        )
+        kazanan_isim = None
+        kazanan_mutfak = None
+        if s.kazanan_mekan_id:
+            kazanan = db.get(MekanOnerisi, s.kazanan_mekan_id)
+            if kazanan:
+                kazanan_isim = kazanan.isim
+                kazanan_mutfak = kazanan.mutfak_turu
+
+        gecmis.append(GecmisSonuc(
+            session_id=s.id,
+            tarih=s.tarih,
+            kazanan_isim=kazanan_isim,
+            kazanan_mutfak_turu=kazanan_mutfak,
+            toplam_oneri=toplam_oneri or 0,
+            toplam_oy=toplam_oy or 0,
+        ))
+
+    return GecmisResponse(gecmis=gecmis, toplam=len(gecmis))
