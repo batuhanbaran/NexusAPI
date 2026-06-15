@@ -29,6 +29,11 @@ class UserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OtpVerify(BaseModel):
+    mail: EmailStr
+    otp: str = Field(..., min_length=6, max_length=6)
+
+
 class UserUpdate(BaseModel):
     isim: str = Field(None, min_length=1, max_length=100)
     soyisim: str = Field(None, min_length=1, max_length=100)

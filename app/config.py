@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
 
     groq_api_key: str = ""
+    resend_api_key: str = ""
     lunch_latitude: float = 39.9564292
     lunch_longitude: float = 32.8526627
 

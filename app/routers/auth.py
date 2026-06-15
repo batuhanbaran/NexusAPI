@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.user import ErrorResponse, Token, UserCreate, UserLogin, UserResponse, UserUpdate
+from app.schemas.user import ErrorResponse, OtpVerify, Token, UserCreate, UserLogin, UserResponse, UserUpdate
 from app.services.auth import (
     authenticate_user,
     create_access_token,
     create_user,
     get_user_by_mail,
 )
+from app.services.otp import send_otp, verify_otp
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +48,10 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 @router.post(
     "/login",
-    response_model=Token,
     responses={401: _401, 500: _500},
+    summary="Giriş — OTP e-postaya gönderilir",
 )
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
+async def login(credentials: UserLogin, db: Session = Depends(get_db)):
     try:
         user = authenticate_user(db, credentials.mail, credentials.sifre)
     except SQLAlchemyError as e:
@@ -64,6 +65,37 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Kullanıcı bulunamadı veya şifre hatalı",
+        )
+
+    sent = await send_otp(user.mail)
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Doğrulama kodu gönderilemedi, lütfen tekrar deneyin",
+        )
+
+    return {"detail": "Doğrulama kodu e-posta adresinize gönderildi"}
+
+
+@router.post(
+    "/verify-otp",
+    response_model=Token,
+    responses={401: _401, 500: _500},
+    summary="OTP doğrula — JWT token döner",
+)
+async def verify_otp_endpoint(payload: OtpVerify, db: Session = Depends(get_db)):
+    valid = await verify_otp(payload.mail, payload.otp)
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Doğrulama kodu hatalı veya süresi dolmuş",
+        )
+
+    user = get_user_by_mail(db, payload.mail)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Kullanıcı bulunamadı",
         )
 
     token = create_access_token(user.id)

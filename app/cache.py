@@ -28,3 +28,6 @@ class TTLCache:
 
 
 mekan_cache: TTLCache = TTLCache(ttl_seconds=300)
+
+# OTP cache — 2 dakika TTL
+otp_cache: TTLCache = TTLCache(ttl_seconds=120)
