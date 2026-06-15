@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LunchSwipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0A0A;
+  --primary:#FF5C00;
+  --primary-soft:#FF7A3D;
+  --secondary:#FFFFFF;
+  --ink:#FFFFFF;
+  --surface:#171717;
+  --surface-2:#232323;
+  --muted:#A0A0A0;
+  --line:#2A2A2A;
+  --cream-2:#232323;
+  --shadow:0 18px 40px -22px rgba(0,0,0,.7);
+  --shadow-sm:0 10px 24px -16px rgba(0,0,0,.8);
+  --serif:'Playfair Display',Georgia,serif;
+  --sans:'DM Sans',system-ui,sans-serif;
+  --radius:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:var(--sans);
+  background:#000;
+  color:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:24px;
+  background-image:radial-gradient(circle at 50% 0%,#1a1a1a,#000);
+}
+
+/* ===== Phone shell ===== */
+.device{
+  position:relative;
+  width:393px;height:852px;
+  background:#000;
+  border-radius:52px;
+  padding:13px;
+  box-shadow:0 50px 120px -40px rgba(0,0,0,.9),0 0 0 2px #2a2a2a,inset 0 0 0 1px #000;
+  flex:0 0 auto;
+}
+.screen-frame{
+  position:relative;
+  width:100%;height:100%;
+  background:var(--bg);
+  border-radius:40px;
+  overflow:hidden;
+  isolation:isolate;
+}
+.notch{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:118px;height:30px;background:#000;
+  border-radius:0 0 18px 18px;z-index:200;
+}
+.statusbar{
+  position:absolute;top:0;left:0;right:0;height:50px;z-index:150;
+  display:flex;align-items:flex-end;justify-content:space-between;
+  padding:0 26px 6px;font-size:13px;font-weight:600;color:var(--ink);
+  pointer-events:none;
+}
+.statusbar .right{display:flex;gap:6px;align-items:center}
+
+/* ===== View system ===== */
+.viewport{position:absolute;inset:0;overflow:hidden}
+.view{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  opacity:0;visibility:hidden;
+  transform:translateX(28px);
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1),visibility .42s;
+  overflow:hidden;
+}
+.view.active{opacity:1;visibility:visible;transform:translateX(0)}
+.view.exit-left{transform:translateX(-28px)}
+.scroll{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  padding-top:50px;
+  -webkit-overflow-scrolling:touch;
+}
+.scroll::-webkit-scrollbar{width:0}
+.pad{padding:0 26px}
+
+/* ===== Typography helpers ===== */
+.display{font-family:var(--serif);font-weight:700;line-height:1.02;letter-spacing:-.01em;color:var(--ink)}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--primary)}
+.muted{color:var(--muted)}
+.serif-it{font-family:var(--serif);font-style:italic}
+
+/* ===== Buttons ===== */
+.btn{
+  width:100%;border:none;cursor:pointer;font-family:var(--sans);
+  font-size:16px;font-weight:600;padding:17px;border-radius:16px;
+  background:var(--primary);color:#fff;transition:transform .15s,filter .2s,opacity .2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn:active{transform:scale(.975)}
+.btn:hover{filter:brightness(1.05)}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.dark{background:var(--surface-2);border:1.5px solid var(--line);color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:disabled:active{transform:none}
+.linkbtn{background:none;border:none;color:var(--primary);font-family:var(--sans);font-weight:600;font-size:14px;cursor:pointer}
+
+/* ===== Inputs ===== */
+.field{margin-bottom:16px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--secondary);margin-bottom:7px;letter-spacing:.01em}
+.field input{
+  width:100%;border:1.5px solid var(--line);background:var(--surface);
+  border-radius:14px;padding:15px 16px;font-family:var(--sans);font-size:16px;color:var(--ink);
+  transition:border-color .2s,box-shadow .2s;
+}
+.field input::placeholder{color:#5C5C5C}
+.field input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 4px rgba(196,82,42,.1)}
+
+/* ===== Cards ===== */
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--line)}
+
+/* ===== Bottom tab bar ===== */
+.tabbar{
+  position:absolute;bottom:0;left:0;right:0;height:88px;z-index:120;
+  background:rgba(15,15,15,.82);backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);
+  display:flex;align-items:flex-start;justify-content:space-around;
+  padding:12px 10px 0;
+}
+.tab{
+  background:none;border:none;cursor:pointer;flex:1;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  color:#6B6B6B;font-family:var(--sans);font-size:10px;font-weight:600;
+  transition:color .2s;letter-spacing:.02em;
+}
+.tab svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.8}
+.tab.active{color:var(--primary)}
+.tab.fab{flex:0 0 auto;margin-top:-22px}
+.tab.fab .fabc{
+  width:54px;height:54px;border-radius:50%;background:var(--primary);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 10px 24px -8px rgba(196,82,42,.7);color:#fff;
+}
+.tab.fab .fabc svg{width:26px;height:26px;stroke-width:2}
+.with-tabbar{padding-bottom:104px}
+
+/* ===== Header ===== */
+.apphead{display:flex;align-items:center;justify-content:space-between;padding:8px 0 18px}
+.apphead .h-title{font-family:var(--serif);font-weight:700;font-size:26px}
+.backbtn{
+  width:42px;height:42px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink);
+}
+.backbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
+
+/* ===== Badges & chips ===== */
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:5px 10px;border-radius:999px;letter-spacing:.02em}
+.chip.open{background:rgba(255,92,0,.16);color:var(--primary-soft)}
+.chip.closed{background:rgba(255,255,255,.08);color:var(--muted)}
+.chip.cuisine{background:var(--cream-2);color:var(--muted)}
+
+/* OTP boxes */
+.otp-box{
+  flex:1;width:0;aspect-ratio:1/1.18;text-align:center;
+  border:1.5px solid var(--line);background:var(--surface);border-radius:14px;
+  font-family:var(--serif);font-size:28px;font-weight:600;color:var(--ink);
+  transition:border-color .2s,box-shadow .2s,transform .15s;
+}
+.otp-box:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 4px rgba(196,82,42,.1)}
+.otp-box.filled{border-color:var(--primary);background:var(--surface-2)}
+
+/* Segmented control */
+.seg{display:flex;gap:6px;background:var(--cream-2);padding:5px;border-radius:14px}
+.seg-opt{
+  flex:1;border:none;background:transparent;cursor:pointer;
+  font-family:var(--sans);font-size:14px;font-weight:600;color:var(--muted);
+  padding:11px 6px;border-radius:10px;transition:.2s;
+}
+.seg-opt.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+
+/* Profile rows */
+.prow{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);gap:12px}
+.plabel{font-size:13px;color:var(--muted);font-weight:600;flex:0 0 auto}
+.pval{font-size:15px;font-weight:600;color:var(--ink);text-align:right}
+.pinput{display:none;flex:1;max-width:60%;border:1.5px solid var(--primary);border-radius:10px;padding:8px 10px;font-family:var(--sans);font-size:14px;text-align:right}
+.editing .pval{display:none}
+.editing .pinput{display:block}
+.editing .pinput:focus{outline:none}
+
+/* vote card */
+.vcard{display:flex;align-items:center;gap:14px;padding:14px;margin-bottom:12px}
+.vcard .vimg{width:62px;height:62px;border-radius:14px;flex:0 0 auto}
+.votebtn{
+  flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:1.5px solid var(--line);
+  background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--primary);transition:transform .18s cubic-bezier(.34,1.56,.64,1),background .2s,border-color .2s;
+}
+.votebtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9}
+.votebtn.voted{background:var(--primary);border-color:var(--primary);color:#fff}
+.votebtn.voted svg{fill:#fff}
+.votebtn.pulse{animation:pulse .4s ease}
+@keyframes pulse{0%{transform:scale(1)}40%{transform:scale(1.28)}100%{transform:scale(1)}}
+.votebtn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ===== Venue tabs (home) ===== */
+.vtabs{display:flex;gap:26px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.vtab{
+  background:none;border:none;cursor:pointer;padding:0 0 13px;
+  font-family:var(--sans);font-size:15px;font-weight:600;color:var(--muted);
+  position:relative;transition:color .2s;display:flex;align-items:center;gap:6px;
+}
+.vtab.active{color:var(--ink)}
+.vtab.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2.5px;background:var(--primary);border-radius:3px}
+
+/* ===== Tinder swipe stack ===== */
+.swipe-wrap{position:relative;margin-top:18px}
+.swipe-stack{position:relative;width:100%;height:438px}
+.swipe-card{
+  position:absolute;top:0;left:0;right:0;bottom:0;
+  display:flex;flex-direction:column;overflow:hidden;padding:0;
+  background:var(--surface);border:1px solid var(--line);border-radius:24px;
+  box-shadow:0 24px 50px -24px rgba(0,0,0,.9);
+  touch-action:none;cursor:grab;user-select:none;
+  transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .4s;
+}
+.swipe-card.dragging{transition:none;cursor:grabbing}
+.sc-img{width:100%;flex:1;border-radius:0;font-size:12px}
+.sc-body{padding:18px 20px 22px;background:var(--surface);position:relative;z-index:2}
+.sc-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.sc-name{font-family:var(--serif);font-weight:700;font-size:25px;line-height:1.05;letter-spacing:-.01em}
+.sc-votes{flex:0 0 auto;font-family:var(--sans);font-weight:700;font-size:13px;color:var(--primary-soft);background:rgba(255,92,0,.14);padding:6px 11px;border-radius:999px;white-space:nowrap}
+.sc-cuisine{font-size:14px;margin-top:6px}
+.sc-by{font-size:12px;color:var(--primary-soft);font-weight:600;margin-top:10px;letter-spacing:.02em}
+/* swipe overlays */
+.ov{
+  position:absolute;top:22px;z-index:5;font-family:var(--sans);font-weight:800;font-size:26px;
+  letter-spacing:.06em;padding:8px 16px;border-radius:12px;opacity:0;pointer-events:none;
+  border:3px solid currentColor;
+}
+.ov-like{left:20px;transform:rotate(-14deg);color:#2BD96B;background:rgba(43,217,107,.12)}
+.ov-nope{right:20px;transform:rotate(14deg);color:#FF4D4D;background:rgba(255,77,77,.12)}
+/* action buttons */
+.swipe-actions{display:flex;justify-content:center;gap:30px;margin-top:24px}
+.sw-btn{
+  width:66px;height:66px;border-radius:50%;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .18s cubic-bezier(.34,1.56,.64,1),filter .2s;background:var(--surface-2);
+}
+.sw-btn:active{transform:scale(.9)}
+.sw-btn svg{width:30px;height:30px;stroke-width:2.5;fill:none}
+.sw-btn.nope{border:2px solid #FF4D4D;color:#FF4D4D}
+.sw-btn.like{background:var(--primary);color:#fff;box-shadow:0 12px 28px -10px rgba(255,92,0,.8)}
+.sw-btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
+.sw-btn:disabled:active{transform:none}
+/* empty state */
+.swipe-empty{
+  height:438px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:8px;border:1.5px dashed var(--line);border-radius:24px;padding:30px;
+}
+.swipe-empty .ico{width:64px;height:64px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;margin-bottom:8px;color:var(--primary)}
+
+/* ===== Home fixed header + safe areas ===== */
+.home-topbar{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:56px 26px 14px;background:var(--bg);
+  border-bottom:1px solid var(--line);z-index:10;
+}
+.home-topbar .date{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.home-topbar .time{font-family:var(--serif);font-size:17px;font-weight:600;color:var(--ink);margin-top:2px}
+.home-scroll{padding-top:18px}
+.greeting{font-family:var(--serif);font-weight:700;font-size:28px;letter-spacing:-.01em;margin-bottom:20px}
+
+/* placeholder imagery */
+.ph{
+  background-color:var(--surface-2);
+  background-image:repeating-linear-gradient(45deg,rgba(255,92,0,.1) 0 8px,transparent 8px 16px);
+  display:flex;align-items:center;justify-content:center;
+  font-family:ui-monospace,monospace;font-size:10px;color:var(--muted);letter-spacing:.04em;
+}
+
+.toast{
+  position:absolute;left:50%;bottom:108px;transform:translateX(-50%) translateY(20px);
+  background:#fff;color:#0A0A0A;padding:12px 20px;border-radius:999px;
+  font-size:13px;font-weight:600;z-index:300;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap;
+  box-shadow:0 12px 30px -12px rgba(0,0,0,.5);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:480px){
+  body{padding:0;background:var(--bg)}
+  .device{width:100vw;height:100vh;height:100dvh;border-radius:0;padding:0;box-shadow:none}
+  .screen-frame{border-radius:0}
+  .notch{display:none}
+}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="screen-frame">
+    <div class="notch"></div>
+    <div class="statusbar">
+      <span>9:41</span>
+      <span class="right">
+        <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4" width="3" height="8" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+        <svg width="22" height="12" viewBox="0 0 22 12" fill="none"><rect x="1" y="1" width="17" height="10" rx="3" stroke="currentColor" stroke-width="1.2"/><rect x="3" y="3" width="12" height="6" rx="1.5" fill="currentColor"/><rect x="19" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>
+      </span>
+    </div>
+    <div class="viewport" id="viewport">
+      <!-- ============ LOGIN ============ -->
+      <section class="view" id="v-login" data-screen-label="Login">
+        <div class="scroll pad" style="display:flex;flex-direction:column">
+          <div style="height:74px"></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:auto">
+            <div style="width:34px;height:34px;border-radius:10px;background:var(--primary);display:flex;align-items:center;justify-content:center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 7l1.5 12.5a1 1 0 0 0 1 .9h11a1 1 0 0 0 1-.9L19 7M8 7V5a4 4 0 0 1 8 0v2"/></svg>
+            </div>
+            <span style="font-family:var(--serif);font-weight:700;font-size:19px;letter-spacing:-.01em">LunchSwipe</span>
+          </div>
+          <div style="margin:38px 0 38px">
+            <p class="eyebrow" style="margin-bottom:16px">Öğlen molası, yeniden keşfedildi</p>
+            <h1 class="display" style="font-size:42px">Ekibinle<br>bugün <span class="serif-it" style="color:var(--primary)">nerede</span><br>yiyorsunuz?</h1>
+          </div>
+          <form id="loginForm" onsubmit="return false">
+            <div class="field">
+              <label>E-posta</label>
+              <input type="email" id="loginEmail" placeholder="ad@sirket.com" autocomplete="email" value="ahmet@gmail.com">
+            </div>
+            <div class="field">
+              <label>Şifre</label>
+              <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" value="123456">
+            </div>
+            <button class="btn" style="margin-top:8px" onclick="doLogin()">Giriş Yap</button>
+          </form>
+          <div style="text-align:center;margin:22px 0">
+            <button class="linkbtn" style="color:var(--muted);font-weight:500">Şifremi unuttum</button>
+          </div>
+          <div style="margin-top:auto;padding:18px 0;text-align:center;border-top:1px solid var(--line)">
+            <span class="muted" style="font-size:14px">Hesabın yok mu? </span>
+            <button class="linkbtn" onclick="go('v-kayit')">Kayıt Ol</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ OTP ============ -->
+      <section class="view" id="v-otp" data-screen-label="OTP">
+        <div class="scroll pad" style="display:flex;flex-direction:column">
+          <div class="apphead" style="padding-top:62px">
+            <button class="backbtn" onclick="go('v-kayit','back')"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          </div>
+          <div style="margin:18px 0 8px">
+            <p class="eyebrow" style="margin-bottom:14px">Doğrulama</p>
+            <h1 class="display" style="font-size:38px">E-postanızı<br>doğrulayın</h1>
+            <p class="muted" style="margin-top:14px;font-size:15px;line-height:1.5">
+              <span id="otpEmail" style="color:var(--ink);font-weight:600">ah***@gmail.com</span> adresine<br>gönderdiğimiz 6 haneli kodu gir.
+            </p>
+          </div>
+          <div class="otp-row" style="display:flex;gap:9px;margin:32px 0 8px">
+            <input class="otp-box" maxlength="1" inputmode="numeric" type="tel">
+            <input class="otp-box" maxlength="1" inputmode="numeric" type="tel">
+            <input class="otp-box" maxlength="1" inputmode="numeric" type="tel">
+            <input class="otp-box" maxlength="1" inputmode="numeric" type="tel">
+            <input class="otp-box" maxlength="1" inputmode="numeric" type="tel">
+            <input class="otp-box" maxlength="1" inputmode="numeric" type="tel">
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:22px 2px">
+            <span class="muted" style="font-size:14px">Kalan süre</span>
+            <span id="otpTimer" style="font-family:var(--serif);font-weight:600;font-size:18px;color:var(--primary)">02:00</span>
+          </div>
+          <button class="btn" id="otpVerify" style="margin-top:10px" onclick="doVerify()">Doğrula</button>
+          <div style="text-align:center;margin-top:24px">
+            <span class="muted" style="font-size:14px">Kod gelmedi mi? </span>
+            <button class="linkbtn" id="otpResend" onclick="resendOtp()" disabled style="opacity:.45">Kodu Tekrar Gönder</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ KAYIT ============ -->
+      <section class="view" id="v-kayit" data-screen-label="Kayit">
+        <div class="scroll pad" style="display:flex;flex-direction:column">
+          <div class="apphead" style="padding-top:62px">
+            <button class="backbtn" onclick="go('v-login','back')"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          </div>
+          <div style="margin:14px 0 26px">
+            <p class="eyebrow" style="margin-bottom:14px">Aramıza katıl</p>
+            <h1 class="display" style="font-size:38px">Hesap oluştur</h1>
+          </div>
+          <form onsubmit="return false">
+            <div style="display:flex;gap:12px">
+              <div class="field" style="flex:1"><label>İsim</label><input type="text" placeholder="Ahmet"></div>
+              <div class="field" style="flex:1"><label>Soyisim</label><input type="text" placeholder="Yılmaz"></div>
+            </div>
+            <div class="field"><label>E-posta</label><input type="email" id="kayitEmail" placeholder="ad@sirket.com" value="ahmet@gmail.com"></div>
+            <div class="field"><label>Şifre</label><input type="password" placeholder="En az 6 karakter"></div>
+            <div class="field">
+              <label>Cinsiyet</label>
+              <div class="seg" id="genderSeg">
+                <button type="button" class="seg-opt active" data-v="Erkek">Erkek</button>
+                <button type="button" class="seg-opt" data-v="Kadın">Kadın</button>
+                <button type="button" class="seg-opt" data-v="Diğer">Diğer</button>
+              </div>
+            </div>
+            <button class="btn" style="margin-top:14px" onclick="doRegister()">Kayıt Ol</button>
+          </form>
+          <div style="margin-top:auto;padding:20px 0;text-align:center">
+            <span class="muted" style="font-size:14px">Zaten üye misin? </span>
+            <button class="linkbtn" onclick="go('v-login','back')">Giriş Yap</button>
+          </div>
+        </div>
+      </section>
+      <!-- ============ ANA EKRAN / OYLAMA ============ -->
+      <section class="view" id="v-home" data-screen-label="Ana Ekran">
+        <div class="home-topbar">
+          <div>
+            <p class="date">Salı, 15 Haziran</p>
+            <p class="time" id="homeClock">09:24</p>
+          </div>
+          <div class="ph" style="width:46px;height:46px;border-radius:50%;font-size:8px">foto</div>
+        </div>
+        <div class="scroll pad home-scroll with-tabbar">
+          <h1 class="greeting">Merhaba, Ahmet</h1>
+
+          <!-- session banner -->
+          <div id="sessionBanner" class="card" style="padding:18px 20px;margin-bottom:24px;background:linear-gradient(135deg,#1c1208,#171717);border:1px solid rgba(255,92,0,.35)">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <span class="chip open" id="sessionChip">● Oylama açık</span>
+                <p style="color:var(--ink);font-family:var(--serif);font-size:21px;font-weight:600;margin-top:12px">Bugün nerede yiyoruz?</p>
+                <p style="color:var(--muted);font-size:13px;margin-top:5px" id="sessionSub">Oylama 12:00'de kapanıyor · <span id="sessionCount">42</span> kişi oyladı</p>
+              </div>
+            </div>
+            <div style="height:6px;border-radius:999px;background:rgba(255,255,255,.1);margin-top:16px;overflow:hidden">
+              <div style="height:100%;width:64%;background:linear-gradient(90deg,var(--primary),var(--primary-soft));border-radius:999px"></div>
+            </div>
+          </div>
+
+          <h2 class="display" style="font-size:24px;margin-bottom:16px">Önerilen mekanlar</h2>
+          <div class="vtabs" id="venueTabs">
+            <button class="vtab active" data-tab="ai" onclick="setVenueTab('ai',this)">✦ AI Önerileri</button>
+            <button class="vtab" data-tab="team" onclick="setVenueTab('team',this)">👥 Ekip Önerileri</button>
+          </div>
+
+          <div class="swipe-wrap">
+            <div class="swipe-stack" id="swipeStack"></div>
+            <div class="swipe-empty" id="swipeEmpty" hidden>
+              <div class="ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+              <p style="font-family:var(--serif);font-size:21px;font-weight:600">Hepsini gördün!</p>
+              <p class="muted" style="font-size:14px;line-height:1.5;max-width:240px">Bugün için tüm mekanları değerlendirdin. Sonuçlara göz at ya da yeni bir mekan öner.</p>
+              <button class="linkbtn" style="margin-top:10px" onclick="go('v-board')">Sonuçları gör →</button>
+            </div>
+          </div>
+
+          <div class="swipe-actions" id="swipeActions">
+            <button class="sw-btn nope" onclick="swipeAction(-1)" aria-label="Geç">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <button class="sw-btn like" onclick="swipeAction(1)" aria-label="Oy ver">
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 21s-7.5-5.1-9.6-9.2C.8 8.6 2.4 5.5 5.4 5.1c1.9-.3 3.6.8 4.6 2.3 1-1.5 2.7-2.6 4.6-2.3 3 .4 4.6 3.5 3 6.7C19.5 15.9 12 21 12 21z"/></svg>
+            </button>
+          </div>
+
+          <button class="btn ghost" style="margin-top:26px" onclick="go('v-oner')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Yeni mekan öner
+          </button>
+        </div>
+      </section>
+      <!-- ============ MEKAN ÖNER ============ -->
+      <section class="view" id="v-oner" data-screen-label="Mekan Oner">
+        <div class="scroll pad with-tabbar">
+          <div class="apphead">
+            <button class="backbtn" onclick="go('v-home','back')"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <div class="h-title" style="font-size:22px">Mekan Öner</div>
+            <div style="width:42px"></div>
+          </div>
+
+          <div style="margin:6px 0 26px">
+            <h2 class="display" style="font-size:30px;line-height:1.05">Ekibine yeni<br>bir <span class="serif-it" style="color:var(--primary)">durak</span> öner</h2>
+            <p class="muted" style="font-size:14px;line-height:1.5;margin-top:12px">Önerdiğin mekan bugünkü oylamaya “Ekip Önerileri” sekmesinde eklenir.</p>
+          </div>
+
+          <form onsubmit="return false">
+            <div class="field"><label>Mekan adı</label><input type="text" placeholder="Örn. Çiya Sofrası"></div>
+            <div class="field"><label>Adres</label><input type="text" placeholder="Mahalle, sokak / semt"></div>
+            <div class="field">
+              <label>Mutfak türü</label>
+              <div class="seg" id="cuisineSeg" style="flex-wrap:wrap">
+                <button type="button" class="seg-opt active">Türk</button>
+                <button type="button" class="seg-opt">İtalyan</button>
+                <button type="button" class="seg-opt">Uzakdoğu</button>
+              </div>
+            </div>
+            <button class="btn" style="margin-top:18px" onclick="submitVenue()">Oylamaya Ekle</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ============ LEADERBOARD ============ -->
+      <section class="view" id="v-board" data-screen-label="Leaderboard">
+        <div class="scroll pad with-tabbar">
+          <div class="apphead"><div class="h-title">Sonuçlar</div><span class="chip open" id="boardStatus">● Canlı</span></div>
+          <div id="podium" style="display:flex;align-items:flex-end;gap:10px;margin:8px 0 26px"></div>
+          <div id="restList"></div>
+
+          <h3 class="display" style="font-size:20px;margin:28px 0 14px">Katılım</h3>
+          <div class="card" style="padding:18px 20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <span style="font-weight:600;font-size:14px">Oy kullananlar</span>
+              <span style="font-family:var(--serif);font-weight:700;color:var(--secondary)">42</span>
+            </div>
+            <div id="votersAvatars" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-top:16px;border-top:1px solid var(--line)">
+              <span style="font-weight:600;font-size:14px">Henüz oy kullanmayanlar</span>
+              <span style="font-family:var(--serif);font-weight:700;color:var(--primary)">8</span>
+            </div>
+            <div id="nonVoters"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ GEÇMİŞ ============ -->
+      <section class="view" id="v-history" data-screen-label="Gecmis">
+        <div class="scroll pad with-tabbar">
+          <div class="apphead"><div class="h-title">Geçmiş</div></div>
+          <p class="muted" style="font-size:14px;margin-bottom:22px">Son 30 günün kazanan mekanları</p>
+          <div id="historyList"></div>
+        </div>
+      </section>
+
+      <!-- ============ PROFİL ============ -->
+      <section class="view" id="v-profile" data-screen-label="Profil">
+        <div class="scroll pad with-tabbar">
+          <div class="apphead"><div class="h-title">Profil</div>
+            <button class="linkbtn" id="editToggle" onclick="toggleEdit()">Düzenle</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;margin:10px 0 30px">
+            <div class="ph" style="width:96px;height:96px;border-radius:50%;font-size:9px">foto</div>
+            <p class="display" style="font-size:26px;margin-top:16px" id="profName">Ahmet Yılmaz</p>
+            <p class="muted" style="font-size:14px;margin-top:4px">Ürün Ekibi · 128 oy</p>
+          </div>
+          <div class="card" style="overflow:hidden">
+            <div class="prow"><span class="plabel">İsim Soyisim</span><span class="pval" data-k="name">Ahmet Yılmaz</span><input class="pinput" data-k="name" value="Ahmet Yılmaz"></div>
+            <div class="prow"><span class="plabel">E-posta</span><span class="pval" data-k="email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="27464f4a425367404a464e4b0944484a">[email&#160;protected]</a></span><input class="pinput" data-k="email" value="ahmet@gmail.com"></div>
+            <div class="prow" style="border-bottom:none"><span class="plabel">Cinsiyet</span><span class="pval" data-k="gender">Erkek</span><input class="pinput" data-k="gender" value="Erkek"></div>
+          </div>
+          <button class="btn dark" id="saveProfile" style="margin-top:18px;display:none" onclick="saveProfile()">Kaydet</button>
+          <button class="btn ghost" style="margin-top:18px;color:var(--primary);border-color:rgba(196,82,42,.3)" onclick="go('v-login')">Çıkış Yap</button>
+        </div>
+      </section>
+      <!-- VIEWS INJECTED BELOW -->
+    </div>
+    <div class="toast" id="toast"></div>
+    <!-- TABBAR -->
+    <nav class="tabbar" id="tabbar" style="display:none">
+      <button class="tab active" data-view="v-home" onclick="go('v-home')">
+        <svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+        <span>Bugün</span>
+      </button>
+      <button class="tab" data-view="v-board" onclick="go('v-board')">
+        <svg viewBox="0 0 24 24"><path d="M8 21V11M16 21V7M4 21h16"/></svg>
+        <span>Sonuçlar</span>
+      </button>
+      <button class="tab fab" onclick="go('v-oner')">
+        <span class="fabc"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+      </button>
+      <button class="tab" data-view="v-history" onclick="go('v-history')">
+        <svg viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+        <span>Geçmiş</span>
+      </button>
+      <button class="tab" data-view="v-profile" onclick="go('v-profile')">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+        <span>Profil</span>
+      </button>
+    </nav>
+  </div>
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* ===================== DATA ===================== */
+const AI_VENUES = [
+  {id:1, name:"Çiya Sofrası", cuisine:"Türk · Ev yemeği", votes:18, ph:"yemek"},
+  {id:2, name:"Sushi Co.", cuisine:"Uzakdoğu · Suşi", votes:14, ph:"yemek"},
+  {id:3, name:"Mangalbaşı", cuisine:"Türk · Izgara", votes:11, ph:"yemek"},
+  {id:4, name:"Bella Napoli", cuisine:"İtalyan · Pizza", votes:7, ph:"yemek"},
+  {id:5, name:"Yeşil Kase", cuisine:"Sağlıklı · Salata", votes:5, ph:"yemek"},
+];
+const TEAM_VENUES = [
+  {id:6, name:"Köfteci Ramiz", cuisine:"Türk · Köfte", votes:9, ph:"yemek", by:"Mert A."},
+  {id:7, name:"Pho Vietnam", cuisine:"Uzakdoğu · Çorba", votes:6, ph:"yemek", by:"Selin T."},
+  {id:8, name:"Dürümcü Baba", cuisine:"Türk · Dürüm", votes:4, ph:"yemek", by:"Can B."},
+];
+let venueTab = 'ai';
+const activeVenues = ()=> venueTab==='ai' ? AI_VENUES : TEAM_VENUES;
+const allVenues = ()=> [...AI_VENUES, ...TEAM_VENUES];
+const findVenue = id => allVenues().find(v=>v.id===id);
+const HISTORY = [
+  {name:"Çiya Sofrası", cuisine:"Türk", date:"14 Haz", votes:23, w:1},
+  {name:"Sushi Co.", cuisine:"Uzakdoğu", date:"13 Haz", votes:19, w:2},
+  {name:"Mangalbaşı", cuisine:"Türk", date:"12 Haz", votes:21},
+  {name:"Bella Napoli", cuisine:"İtalyan", date:"11 Haz", votes:17},
+  {name:"Yeşil Kase", cuisine:"Sağlıklı", date:"10 Haz", votes:15},
+  {name:"Köfteci Ramiz", cuisine:"Türk", date:"7 Haz", votes:24},
+];
+const NON_VOTERS = ["Zeynep K.","Mert A.","Elif D.","Can B.","Selin T.","Burak Ö.","Deniz Y.","Ada M."];
+let myVote = null;            // venue id I voted for
+let sessionOpen = true;       // 09:00–12:00 window
+const HEART = '<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-5.1-9.6-9.2C.8 8.6 2.4 5.5 5.4 5.1c1.9-.3 3.6.8 4.6 2.3 1-1.5 2.7-2.6 4.6-2.3 3 .4 4.6 3.5 3 6.7C19.5 15.9 12 21 12 21z"/></svg>';
+
+/* ===================== NAVIGATION ===================== */
+let current = 'v-login';
+const AUTH = ['v-login','v-otp','v-kayit'];
+function go(id, dir){
+  if(id===current) return;
+  const cur = document.getElementById(current);
+  const nxt = document.getElementById(id);
+  // robustly clear every other view
+  document.querySelectorAll('.view').forEach(v=>{
+    if(v.id!==id){ v.classList.remove('active','exit-left'); }
+  });
+  if(cur && cur!==nxt){ cur.classList.add('exit-left'); }
+  // start position for entering view
+  nxt.classList.remove('active','exit-left');
+  nxt.style.transform = dir==='back' ? 'translateX(-28px)' : '';
+  void nxt.offsetWidth; // force reflow so the transition plays
+  nxt.classList.add('active');
+  nxt.style.transform='';
+  nxt.querySelector('.scroll')?.scrollTo(0,0);
+  setTimeout(()=>{ if(cur && cur!==nxt) cur.classList.remove('exit-left'); },460);
+  current = id;
+  // tab bar visibility
+  const showTab = !AUTH.includes(id);
+  document.getElementById('tabbar').style.display = showTab ? 'flex' : 'none';
+  document.querySelectorAll('.tab[data-view]').forEach(t=>t.classList.toggle('active',t.dataset.view===id));
+  if(id==='v-otp') startOtp();
+}
+
+/* ===================== TOAST ===================== */
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ===================== AUTH ===================== */
+function doLogin(){
+  // Giriş: OTP yok, direkt ana sayfa
+  renderAll();
+  go('v-home');
+}
+function doRegister(){
+  // Kayıt: e-postayı maskele ve OTP doğrulamaya geç
+  const email=document.getElementById('kayitEmail').value||'ahmet@gmail.com';
+  document.getElementById('otpEmail').textContent=maskEmail(email);
+  go('v-otp');
+}
+function maskEmail(e){
+  const [u,d]=e.split('@'); if(!d) return e;
+  return u.slice(0,2)+'***@'+d;
+}
+
+/* ===================== OTP ===================== */
+let otpInterval;
+function startOtp(){
+  const boxes=document.querySelectorAll('#v-otp .otp-box');
+  boxes.forEach(b=>{b.value='';b.classList.remove('filled')});
+  boxes[0].focus();
+  // countdown
+  let t=120;
+  const timer=document.getElementById('otpTimer');
+  const resend=document.getElementById('otpResend');
+  resend.disabled=true; resend.style.opacity='.45';
+  clearInterval(otpInterval);
+  const tick=()=>{
+    const m=String(Math.floor(t/60)).padStart(2,'0');
+    const s=String(t%60).padStart(2,'0');
+    timer.textContent=m+':'+s;
+    if(t<=0){clearInterval(otpInterval);timer.textContent='00:00';timer.style.color='var(--muted)';resend.disabled=false;resend.style.opacity='1';}
+    t--;
+  };
+  timer.style.color='var(--primary)'; tick();
+  otpInterval=setInterval(tick,1000);
+}
+function resendOtp(){ toast('Yeni kod gönderildi'); startOtp(); }
+function doVerify(){
+  const boxes=[...document.querySelectorAll('#v-otp .otp-box')];
+  if(boxes.some(b=>!b.value)){ toast('Lütfen 6 haneyi de gir'); return; }
+  clearInterval(otpInterval);
+  renderAll();
+  go('v-home');
+}
+
+/* ===================== GENDER / SEG ===================== */
+function bindSeg(sel){
+  document.querySelectorAll(sel+' .seg-opt').forEach(o=>{
+    o.addEventListener('click',()=>{
+      o.parentElement.querySelectorAll('.seg-opt').forEach(x=>x.classList.remove('active'));
+      o.classList.add('active');
+    });
+  });
+}
+
+/* ===================== MEKAN ÖNER ===================== */
+function submitVenue(){
+  const inputs=document.querySelectorAll('#v-oner input');
+  const name=(inputs[0]?.value||'').trim()||'Yeni Mekan';
+  const cuisine=document.querySelector('#cuisineSeg .seg-opt.active')?.textContent||'Türk';
+  const id=Math.max(...allVenues().map(v=>v.id))+1;
+  TEAM_VENUES.splice(teamIndex,0,{id, name, cuisine:cuisine+' · Mutfak', votes:1, ph:"yemek", by:"Sen"});
+  votedIds.add(id);
+  inputs.forEach(i=>i.value='');
+  venueTab='team';
+  setVenueTab('team');
+  renderBoard();
+  toast('Mekan eklendi · oyun verildi ✦');
+  go('v-home','back');
+}
+
+/* ===================== RENDER: SWIPE STACK ===================== */
+let aiIndex=0, teamIndex=0;
+let votedIds=new Set();
+const curIndex=()=> venueTab==='ai'?aiIndex:teamIndex;
+const setIndex=n=>{ if(venueTab==='ai') aiIndex=n; else teamIndex=n; };
+
+function cardHtml(v,pos){
+  const scale=(1-pos*0.05).toFixed(3), ty=-pos*14, z=10-pos;
+  const interactive = pos===0;
+  return `<div class="swipe-card" data-id="${v.id}" data-pos="${pos}" style="transform:scale(${scale}) translateY(${ty}px);z-index:${z};${interactive?'':'pointer-events:none;'}">
+     <div class="ph sc-img">${v.ph}</div>
+     <div class="sc-body">
+       <div class="sc-row">
+         <p class="sc-name">${v.name}</p>
+         <span class="sc-votes">♥ ${v.votes}</span>
+       </div>
+       <p class="muted sc-cuisine">${v.cuisine}</p>
+       ${v.by?`<p class="sc-by">↳ ${v.by} önerdi</p>`:''}
+     </div>
+     <div class="ov ov-like">OY ✓</div>
+     <div class="ov ov-nope">GEÇ ✗</div>
+   </div>`;
+}
+function renderStack(){
+  const stack=document.getElementById('swipeStack');
+  const empty=document.getElementById('swipeEmpty');
+  const actions=document.getElementById('swipeActions');
+  const list=activeVenues();
+  const i=curIndex();
+  const remaining=list.slice(i, i+3);
+  if(remaining.length===0){
+    stack.innerHTML=''; stack.style.display='none';
+    empty.hidden=false; actions.style.display='none';
+    updateSessionUI(); return;
+  }
+  stack.style.display='block'; empty.hidden=true; actions.style.display='flex';
+  // render front card LAST so it sits on top in DOM order too
+  stack.innerHTML=remaining.map((v,idx)=>cardHtml(v,idx)).reverse().join('');
+  const top=stack.querySelector('.swipe-card[data-pos="0"]');
+  bindDrag(top);
+  // disable like button when session closed
+  document.querySelector('.sw-btn.like').disabled=!sessionOpen;
+  updateSessionUI();
+}
+function setVenueTab(tab){
+  venueTab=tab;
+  document.querySelectorAll('#venueTabs .vtab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  renderStack();
+}
+function bindDrag(card){
+  if(!card) return;
+  let startX=0,startY=0,dx=0,dy=0,dragging=false;
+  const like=card.querySelector('.ov-like'), nope=card.querySelector('.ov-nope');
+  card.addEventListener('pointerdown',e=>{
+    dragging=true; dx=dy=0; card.classList.add('dragging');
+    startX=e.clientX; startY=e.clientY;
+    try{ card.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  card.addEventListener('pointermove',e=>{
+    if(!dragging) return;
+    dx=e.clientX-startX; dy=e.clientY-startY;
+    card.style.transform=`translate(${dx}px,${dy*0.4}px) rotate(${dx*0.06}deg)`;
+    const k=Math.min(Math.abs(dx)/120,1);
+    like.style.opacity=dx>0?k:0;
+    nope.style.opacity=dx<0?k:0;
+  });
+  const release=()=>{
+    if(!dragging) return; dragging=false; card.classList.remove('dragging');
+    if(dx>110) fling(card,1);
+    else if(dx<-110) fling(card,-1);
+    else { card.style.transform=''; like.style.opacity=0; nope.style.opacity=0; }
+  };
+  card.addEventListener('pointerup',release);
+  card.addEventListener('pointercancel',release);
+}
+function fling(card,dir){
+  const id=+card.dataset.id;
+  card.style.transition='transform .45s ease,opacity .45s ease';
+  card.style.transform=`translate(${dir*620}px,60px) rotate(${dir*32}deg)`;
+  card.style.opacity='0';
+  if(dir>0) swipeVote(id); else toast('Geçildi');
+  setTimeout(()=>{ setIndex(curIndex()+1); renderStack(); },300);
+}
+function swipeAction(dir){
+  const card=document.querySelector('#swipeStack .swipe-card[data-pos="0"]');
+  if(!card) return;
+  if(dir>0 && !sessionOpen){ toast('Oylama kapalı'); return; }
+  const ov=card.querySelector(dir>0?'.ov-like':'.ov-nope');
+  ov.style.opacity=1;
+  fling(card,dir);
+}
+function swipeVote(id){
+  if(!sessionOpen){ toast('Oylama kapalı'); return; }
+  const v=findVenue(id); if(!v) return;
+  v.votes++; votedIds.add(id);
+  toast('Oy verildi ✓'); renderBoard();
+}
+
+function renderBoard(){
+  const sorted=[...allVenues()].sort((a,b)=>b.votes-a.votes);
+  const top3=sorted.slice(0,3);
+  const order=[1,0,2]; // 2nd, 1st, 3rd
+  const heights=[96,128,76]; const medals=['2','1','3'];
+  const colors=['var(--primary)','#3A3A3A','#262626'];
+  document.getElementById('podium').innerHTML=order.map((idx,pos)=>{
+    const v=top3[idx]; if(!v) return '';
+    const rank=idx; // 0=gold,1=silver,2=bronze
+    return `<div style="flex:1;text-align:center">
+      <div class="ph" style="width:100%;aspect-ratio:1;border-radius:14px;margin-bottom:8px;border:2px solid ${rank===0?'var(--primary)':'var(--line)'}">foto</div>
+      <p style="font-family:var(--serif);font-weight:600;font-size:13px;line-height:1.1">${v.name}</p>
+      <div style="height:${heights[pos]}px;background:${colors[rank]};border-radius:12px 12px 0 0;margin-top:8px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:10px;color:#fff">
+        <span style="font-family:var(--serif);font-weight:800;font-size:26px">${medals[pos]}</span>
+        <span style="font-size:12px;font-weight:600;opacity:.9;margin-top:2px">${v.votes} oy</span>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('restList').innerHTML=sorted.slice(3).map((v,i)=>`
+    <div class="card vcard" style="padding:13px 16px">
+      <span style="font-family:var(--serif);font-weight:700;font-size:18px;color:var(--muted);width:24px;text-align:center">${i+4}</span>
+      <div class="ph vimg" style="width:46px;height:46px">foto</div>
+      <div style="flex:1"><p style="font-weight:600;font-size:15px">${v.name}</p><p class="muted" style="font-size:12px">${v.cuisine}</p></div>
+      <span style="font-family:var(--serif);font-weight:700;color:var(--primary-soft)">${v.votes}</span>
+    </div>`).join('');
+}
+
+function renderVoters(){
+  const av=document.getElementById('votersAvatars');
+  av.innerHTML=Array.from({length:14}).map(()=>`<span class="ph" style="width:30px;height:30px;border-radius:50%;font-size:0"></span>`).join('')
+    +`<span style="width:30px;height:30px;border-radius:50%;background:var(--cream-2);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted)">+28</span>`;
+  document.getElementById('nonVoters').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:7px">`+
+    NON_VOTERS.map(n=>`<span class="chip cuisine">${n}</span>`).join('')+`</div>`;
+}
+
+function renderHistory(){
+  document.getElementById('historyList').innerHTML=HISTORY.map(h=>`
+    <div class="card vcard" style="padding:14px 16px;align-items:center">
+      <div style="text-align:center;width:42px;flex:0 0 auto">
+        <p style="font-family:var(--serif);font-weight:700;font-size:13px;color:var(--primary)">${h.date.split(' ')[0]}</p>
+        <p class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.08em">${h.date.split(' ')[1]}</p>
+      </div>
+      <div style="width:1px;height:34px;background:var(--line)"></div>
+      <div style="flex:1">
+        <p style="font-family:var(--serif);font-weight:600;font-size:16px">${h.name} ${h.w?'<span style="font-size:13px">🏆</span>':''}</p>
+        <p class="muted" style="font-size:12px;margin-top:2px">${h.cuisine}</p>
+      </div>
+      <span style="font-size:12px;font-weight:600;color:var(--secondary)">${h.votes} oy</span>
+    </div>`).join('');
+}
+
+function updateSessionUI(){
+  const chip=document.getElementById('sessionChip');
+  const sub=document.getElementById('sessionSub');
+  if(sessionOpen){
+    chip.textContent='● Oylama açık';
+    sub.innerHTML="Oylama 12:00'de kapanıyor · <span id=\"sessionCount\">42</span> kişi oyladı";
+  } else {
+    chip.textContent='● Oylama kapandı';
+    sub.textContent="Yarın 09:00'da tekrar açılacak";
+  }
+}
+
+/* ===================== PROFILE ===================== */
+function toggleEdit(){
+  const card=document.querySelector('#v-profile .card');
+  const editing=card.classList.toggle('editing');
+  document.getElementById('editToggle').textContent=editing?'İptal':'Düzenle';
+  document.getElementById('saveProfile').style.display=editing?'flex':'none';
+}
+function saveProfile(){
+  document.querySelectorAll('#v-profile .pinput').forEach(inp=>{
+    const k=inp.dataset.k;
+    document.querySelector(`#v-profile .pval[data-k="${k}"]`).textContent=inp.value;
+    if(k==='name') document.getElementById('profName').textContent=inp.value;
+  });
+  document.querySelector('#v-profile .card').classList.remove('editing');
+  document.getElementById('editToggle').textContent='Düzenle';
+  document.getElementById('saveProfile').style.display='none';
+  toast('Profil güncellendi');
+}
+
+/* ===================== OTP AUTO-FOCUS ===================== */
+function bindOtp(){
+  const boxes=[...document.querySelectorAll('#v-otp .otp-box')];
+  boxes.forEach((b,i)=>{
+    b.addEventListener('input',e=>{
+      e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,1);
+      b.classList.toggle('filled',!!e.target.value);
+      if(e.target.value && i<boxes.length-1) boxes[i+1].focus();
+    });
+    b.addEventListener('keydown',e=>{
+      if(e.key==='Backspace' && !b.value && i>0){ boxes[i-1].focus(); boxes[i-1].value=''; boxes[i-1].classList.remove('filled'); }
+    });
+    b.addEventListener('paste',e=>{
+      e.preventDefault();
+      const d=(e.clipboardData.getData('text')||'').replace(/[^0-9]/g,'').slice(0,6).split('');
+      d.forEach((ch,j)=>{ if(boxes[j]){boxes[j].value=ch;boxes[j].classList.add('filled');} });
+      boxes[Math.min(d.length,boxes.length-1)].focus();
+    });
+  });
+}
+
+/* ===================== INIT ===================== */
+function renderAll(){ renderStack(); renderBoard(); renderVoters(); renderHistory(); }
+bindSeg('#genderSeg'); bindSeg('#cuisineSeg'); bindOtp();
+renderAll();
+document.getElementById('v-login').classList.add('active');
+document.getElementById('v-login').style.transform='';
+</script>
+</body>
+</html>

@@ -34,6 +34,16 @@ class OtpVerify(BaseModel):
     otp: str = Field(..., min_length=6, max_length=6)
 
 
+class SifreSifirlamaIstek(BaseModel):
+    mail: EmailStr
+
+
+class SifreSifirla(BaseModel):
+    mail: EmailStr
+    otp: str = Field(..., min_length=6, max_length=6)
+    yeni_sifre: str = Field(..., min_length=6, max_length=128)
+
+
 class UserUpdate(BaseModel):
     isim: str = Field(None, min_length=1, max_length=100)
     soyisim: str = Field(None, min_length=1, max_length=100)
