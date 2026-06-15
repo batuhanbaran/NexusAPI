@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # CORS: virgülle ayrılmış origin listesi
     # Örnek: "https://app.example.com,http://localhost:5173"
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     groq_api_key: str = ""
     resend_api_key: str = ""
