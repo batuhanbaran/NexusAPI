@@ -16,4 +16,6 @@ services:
         value: "60"
       - key: CORS_ORIGINS
         value: "https://nexus-frontend-coqa.onrender.com"
+      - key: RESEND_API_KEY
+        sync: false
     healthCheckPath: /health

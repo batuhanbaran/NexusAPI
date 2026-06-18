@@ -38,7 +38,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Bu e-posta adresi zaten kayıtlı",
         )
     try:
-        create_user(db, user_data)
+        new_user = create_user(db, user_data)
     except SQLAlchemyError as e:
         logger.exception("Kullanıcı oluşturulurken veritabanı hatası: %s", e)
         raise HTTPException(
@@ -48,6 +48,11 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
     sent = await send_otp(user_data.mail)
     if not sent:
+        try:
+            db.delete(new_user)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Doğrulama kodu gönderilemedi, lütfen tekrar deneyin",
@@ -88,7 +93,7 @@ async def verify_otp_endpoint(payload: OtpVerify, db: Session = Depends(get_db))
             detail="Sunucu hatası, lütfen tekrar deneyin",
         )
 
-    token = create_access_token(user.id)
+    token = create_access_token(user)
     return Token(
         access_token=token,
         user=UserResponse.model_validate(user),
@@ -123,7 +128,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             detail="E-posta adresiniz doğrulanmamış, lütfen kayıt e-postanızdaki kodu girin",
         )
 
-    token = create_access_token(user.id)
+    token = create_access_token(user)
     return Token(
         access_token=token,
         user=UserResponse.model_validate(user),
