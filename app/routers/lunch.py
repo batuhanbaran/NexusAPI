@@ -153,7 +153,9 @@ def get_oneriler(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    aktif_session = _get_aktif_session_or_400(db)
+    aktif_session = get_aktif_session(db)
+    if not aktif_session:
+        return MekanOnerileriListesi(oneriler=[], toplam=0)
 
     oy_sayisi_subq = (
         select(Oy.mekan_id, func.count(Oy.id).label("sayi"))
@@ -273,7 +275,9 @@ def get_sonuclar(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    aktif_session = _get_aktif_session_or_400(db)
+    aktif_session = get_aktif_session(db)
+    if not aktif_session:
+        return SonuclarResponse(sirali_mekanlar=[], oy_kullananlar=[], oy_kullanmayanlar=[], toplam_katilimci=0)
 
     oy_sayisi_subq = (
         select(Oy.mekan_id, func.count(Oy.id).label("sayi"))
